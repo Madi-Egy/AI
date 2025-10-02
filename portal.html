@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inloggning till Portal</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        /* Lite grundläggande CSS för demonstration */
+        body { font-family: sans-serif; padding: 20px; }
+        #loginForm { max-width: 400px; margin-top: 20px; }
+        .success { color: green; font-weight: bold; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+
+    <h1>Portalinloggning</h1>
+
+    <div id="auth-status"></div>
+
+    <form id="loginForm">
+        <label for="email">E-postadress:</label><br>
+        <input type="email" id="email" required placeholder="din.adress@doman.se"><br><br>
+        <button type="submit" id="submitButton">Skicka inloggningslänk</button>
+    </form>
+
+    <div id="portalContent" style="display: none;">
+        <h2>Välkommen! Du är inloggad.</h2>
+        <p>Här är ditt portalinnehåll.</p>
+        <button id="logoutButton">Logga ut</button>
+    </div>
+
+    <script>
+     // ====================================================================
+// A. KONFIGURATION
+// ====================================================================
+
+// ERSÄTT DESSA MED DINA EGNA NYCKLAR FRÅN SUPABASE DASHBOARD
+const SUPABASE_URL = 'https://wqjnmwyuwxzfivrmzquq.supabase.co'; 
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indxam5td3l1d3h6Zml2cm16cXVxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkzNDMwMDksImV4cCI6MjA3NDkxOTAwOX0.UQpkYTTq2DUH5h8hBiSwNcvE7vDsBrArNC9uFPvyhPU'; 
+const REDIRECT_URL = 'https://dittnamn.github.io/ditt-repo-namn/'; // Där portalen ska hamna
+
+const supabase = Supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// Cache för DOM-element
+const loginForm = document.getElementById('loginForm');
+const portalContent = document.getElementById('portalContent');
+const authStatus = document.getElementById('auth-status');
+const logoutButton = document.getElementById('logoutButton');
+
+
+// ====================================================================
+// B. FUNKTIONER FÖR INLOGGNING/UTLOGGNING
+// ====================================================================
+
+/**
+ * Försöker logga in användaren med en Magic Link (lösenordsfri inloggning).
+ * @param {string} email - Användarens e-postadress.
+ */
+async function signInWithEmail(email) {
+    authStatus.innerHTML = 'Skickar länk...';
+
+    const { error } = await supabase.auth.signInWithOtp({
+        email: email,
+        options: {
+            emailRedirectTo: REDIRECT_URL // Supabase kommer att skicka användaren hit efter klick
+        }
+    });
+
+    if (error) {
+        // Detta fel visas om t.ex. e-posten är felformaterad, eller om din RLS (Row Level Security) 
+        // regler på serversidan nekar en okänd e-post.
+        authStatus.innerHTML = `<p class="error">Inloggningen misslyckades: ${error.message}</p>`;
+    } else {
+        authStatus.innerHTML = `
+            <p class="success">
+                Lyckades! En inloggningslänk har skickats till 
+                <strong>${email}</strong>. Kontrollera din inkorg.
+            </p>
+        `;
+        loginForm.style.display = 'none';
+    }
+}
+
+/**
+ * Loggar ut användaren från Supabase.
+ */
+async function signOut() {
+    await supabase.auth.signOut();
+    updateUI();
+}
+
+/**
+ * Kontrollerar den aktuella inloggningsstatusen och uppdaterar gränssnittet.
+ */
+async function updateUI() {
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (user) {
+        // Användaren är inloggad
+        loginForm.style.display = 'none';
+        portalContent.style.display = 'block';
+        authStatus.innerHTML = `<p>Du är inloggad som: <strong>${user.email}</strong></p>`;
+    } else {
+        // Användaren är utloggad
+        loginForm.style.display = 'block';
+        portalContent.style.display = 'none';
+        authStatus.innerHTML = '<p>Vänligen ange din e-post för att logga in.</p>';
+    }
+}
+
+// ====================================================================
+// C. EVENT LYSSNARE & INITIERING
+// ====================================================================
+
+// 1. Hantera formulärinlämning
+loginForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const email = document.getElementById('email').value;
+    signInWithEmail(email);
+});
+
+// 2. Hantera utloggning
+logoutButton.addEventListener('click', signOut);
+
+// 3. Lyssna på förändringar i autentiseringsstatus (t.ex. när länken klickas)
+supabase.auth.onAuthStateChange((event, session) => {
+    // Denna körs när en användare loggar in via Magic Link/OTP
+    if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
+        updateUI();
+    }
+});
+
+// 4. Initial laddning av UI
+updateUI();
+    </script>
+
+</body>
+</html>
