@@ -91,17 +91,83 @@ async function signOut() {
     updateUI();
 }
 
+// ====================================================================
+// B. FUNKTIONER FÖR INLOGGNING/UTLOGGNING (Ny version)
+// ====================================================================
+
+// ... (behåll din signInWithEmail och signOut funktion) ...
+
 /**
- * Kontrollerar den aktuella inloggningsstatusen och uppdaterar gränssnittet.
+ * Hämtar den inloggade användarens ID och hämtar sedan data.
+ * @returns {string | null} Användarens UUID eller null.
+ */
+async function getCurrentUserId() {
+    const { data: { user } } = await supabase.auth.getUser();
+    return user ? user.id : null; 
+}
+
+
+/**
+ * Hämtar och visar den unika datan för den inloggade användaren.
+ */
+async function fetchAndDisplayUserData(userId, email) {
+    // 1. Försök att hämta data från den skyddade tabellen
+    const { data, error } = await supabase
+        .from('user_data')
+        .select('portal_status, latest_report_date, contact_person')
+        .eq('user_id', userId) 
+        .single(); // Förväntar sig bara en rad (din RLS skyddar resten!)
+
+    // 2. Hantera fel och visa UI
+    if (error && error.code !== 'PGRST116') { 
+        // PGRST116 betyder "ingen data hittades", vilket vi hanterar
+        console.error("Fel vid hämtning av användardata:", error);
+        portalContent.innerHTML = '<p class="error">Kunde inte ladda din data på grund av ett fel.</p>';
+    }
+    
+    // 3. Bygg upp det individuella innehållet
+    let contentHTML;
+    
+    if (data) {
+        // Data hittades, visa den
+        contentHTML = `
+            <h2>Välkommen, ${email}!</h2>
+            <p><strong>Status:</strong> ${data.portal_status}</p>
+            <p><strong>Senaste Rapport:</strong> ${data.latest_report_date}</p>
+            <p><strong>Din Kontakt:</strong> ${data.contact_person}</p>
+        `;
+    } else {
+        // Inloggad men ingen specifik data (kontrollera Steg 1.4)
+         contentHTML = `
+            <h2>Välkommen, ${email}!</h2>
+            <p>Ingen specifik data hittades för ditt konto. Kontakta support.</p>
+        `;
+    }
+    
+    // 4. Visa innehållet och utloggningsknappen
+    portalContent.innerHTML = contentHTML + '<button id="logoutButton">Logga ut</button>';
+    document.getElementById('logoutButton').addEventListener('click', signOut);
+
+    portalContent.style.display = 'block';
+    authStatus.innerHTML = ''; // Rensa statusmeddelanden
+}
+
+
+/**
+ * Kontrollerar den aktuella inloggningsstatusen och uppdaterar gränssnittet. (Huvudfunktionen)
  */
 async function updateUI() {
     const { data: { user } } = await supabase.auth.getUser();
 
     if (user) {
-        // Användaren är inloggad
+        // Användaren är inloggad. Gå vidare till att hämta unik data.
+        const userId = user.id;
+        const userEmail = user.email;
+        
         loginForm.style.display = 'none';
-        portalContent.style.display = 'block';
-        authStatus.innerHTML = `<p>Du är inloggad som: <strong>${user.email}</strong></p>`;
+        
+        // Hämta och visa den individuella informationen
+        await fetchAndDisplayUserData(userId, userEmail); 
     } else {
         // Användaren är utloggad
         loginForm.style.display = 'block';
@@ -109,6 +175,9 @@ async function updateUI() {
         authStatus.innerHTML = '<p>Vänligen ange din e-post för att logga in.</p>';
     }
 }
+
+// ... (behåll dina eventlyssnare från Steg C) ...
+// Observera att `logoutButton`-lyssnaren nu hanteras inuti `fetchAndDisplayUserData`.
 
 // ====================================================================
 // C. EVENT LYSSNARE & INITIERING
