@@ -130,7 +130,7 @@ async function fetchAndDisplayUserData(userId, email) {
     // Försök att hämta data från den skyddade tabellen (RLS skyddar!)
     const { data, error } = await supabase
         .from('user_data')
-        .select('portal_status, latest_report_date, contact_person')
+        .select('rek_1_title, rek_1_link, rek_1_imdb, rek_2_title, rek_2_link, rek_2_imdb, grade_link')
         .eq('user_id', userId) 
         .single(); 
 
@@ -146,9 +146,13 @@ async function fetchAndDisplayUserData(userId, email) {
         // Data hittades
         contentHTML = `
             <h2>Välkommen, ${email}!</h2>
-            <p><strong>Status:</strong> ${data.portal_status}</p>
-            <p><strong>Senaste Rapport:</strong> ${data.latest_report_date}</p>
-            <p><strong>Din Kontakt:</strong> ${data.contact_person}</p>
+            <p><strong>Rekomendation ett:</strong> ${data.rek_1_title}</p>
+            <a href= ${data.rek_1_link}> Se filmen här!</a>
+            <a href= ${data.rek_1_imdb}> Läs om filmen här!</a>
+            <p><strong>Rekomendation två:</strong> ${data.rek_2_title}</p>
+            <a href= ${data.rek_2_link}> Se filmen här!</a>
+            <a href= ${data.rek_2_imdb}> Läs om filmen här!</a>
+            <a href= ${data.grade_link}> Glöm inte att betygsätt filmen efter att du sett den!</a>
         `;
     } else {
         // Inloggad men ingen specifik data i user_data (behöver läggas till i Supabase)
