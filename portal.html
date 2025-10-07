@@ -38,14 +38,14 @@
     </div>
 
     <script>
-     // ====================================================================
+<script>
+// ====================================================================
 // A. KONFIGURATION
 // ====================================================================
 
 // ERSÄTT DESSA MED DINA EGNA NYCKLAR FRÅN SUPABASE DASHBOARD
-const SUPABASE_URL = 'https://wqjnmwyuwxzfivrmzquq.supabase.co'; 
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indxam5td3l1d3h6Zml2cm16cXVxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkzNDMwMDksImV4cCI6MjA3NDkxOTAwOX0.UQpkYTTq2DUH5h8hBiSwNcvE7vDsBrArNC9uFPvyhPU'; 
-
+const SUPABASE_URL = 'https://wqjnmwyuwxzfivrmzquq.supabase.co'; 
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indxam5td3l1d3h6Zml2cm16cXVxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkzNDMwMDksImV4cCI6MjA3NDkxOTAwOX0.UQpkYTTq2DUH5h8hBiSwNcvE7vDsBrArNC9uFPvyhPU'; 
 
 const supabase = Supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -53,28 +53,30 @@ const supabase = Supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const loginForm = document.getElementById('loginForm');
 const portalContent = document.getElementById('portalContent');
 const authStatus = document.getElementById('auth-status');
-const logoutButton = document.getElementById('logoutButton');
-
-
-// =================== NYA CACHE-ELEMENT ===================
 const otpForm = document.getElementById('otpForm');
-let currentEmail = ''; // Lagra e-postadressen tillfälligt
+let currentEmail = ''; // Lagra e-postadressen tillfälligt för OTP-verifieringen
 
-// =================== 1. SKICKA KOD (OTP) ===================
+// ====================================================================
+// B. FUNKTIONER FÖR INLOGGNING/UTLOGGNING (OTP-version)
+// ====================================================================
+
+/**
+ * 1. Skickar en numerisk Engångskod (OTP) till den angivna e-postadressen.
+ */
 async function signInWithEmail(email) {
     authStatus.innerHTML = 'Skickar kod...';
-    currentEmail = email; // Spara e-posten
+    currentEmail = email; 
     
-    // ANVÄND NU signInWithOtp UTAN 'emailRedirectTo'
+    // Använder signInWithOtp, Supabase vet att det är OTP eftersom vi inte skickar Redirect-URL
     const { error } = await supabase.auth.signInWithOtp({
         email: email,
         options: {
-            shouldCreateUser: false // Logga inte in nya användare, endast befintliga
+            shouldCreateUser: false // Viktigt: Endast inloggning för befintliga användare
         }
     });
 
     if (error) {
-        authStatus.innerHTML = `<p class="error">Fel: ${error.message}</p>`;
+        authStatus.innerHTML = `<p class="error">Inloggning misslyckades. Kontrollera e-post: ${error.message}</p>`;
     } else {
         authStatus.innerHTML = `<p class="success">Kod skickad. Kontrollera din inkorg.</p>`;
         loginForm.style.display = 'none';
@@ -82,56 +84,38 @@ async function signInWithEmail(email) {
     }
 }
 
-// =================== 2. VERIFIERA KODEN ===================
+/**
+ * 2. Verifierar den numeriska Engångskoden (OTP).
+ */
 async function verifyOtpCode(token) {
     authStatus.innerHTML = 'Verifierar kod...';
     
-    // Använd email som sparades efter första steget
+    // Verifierar koden mot Supabase
     const { error } = await supabase.auth.verifyOtp({
         email: currentEmail,
         token: token,
-        type: 'email' // Ange att det är en e-postkod
+        type: 'email'
     });
 
     if (error) {
         authStatus.innerHTML = `<p class="error">Verifiering misslyckades: Ogiltig kod eller utgången.</p>`;
     } else {
-        // Logik för att uppdatera UI körs nu via onAuthStateChange
+        // Om koden är rätt, triggas onAuthStateChange och updateUI tar över
         otpForm.style.display = 'none'; 
+        authStatus.innerHTML = `<p class="success">Verifiering lyckades!</p>`;
     }
 }
 
-
-// =================== C. EVENT LYSSNARE ===================
-
-// 1. Hantera Skicka E-post (Kör signInWithEmail)
-loginForm.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const email = document.getElementById('email').value;
-    signInWithEmail(email);
-});
-
-// 2. Hantera Verifiera Kod (Kör verifyOtpCode)
-otpForm.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const otp = document.getElementById('otp').value;
-    verifyOtpCode(otp);
-});
-
-// (Resten av din kod, updateUI och onAuthStateChange, kan förbli som den är)
 /**
- * Loggar ut användaren från Supabase.
+ * 3. Loggar ut användaren från Supabase.
  */
 async function signOut() {
     await supabase.auth.signOut();
     updateUI();
 }
 
-... (behåll din signInWithEmail och signOut funktion) ...
-
 /**
- * Hämtar den inloggade användarens ID och hämtar sedan data.
- * @returns {string | null} Användarens UUID eller null.
+ * 4. Hämtar den inloggade användarens ID.
  */
 async function getCurrentUserId() {
     const { data: { user } } = await supabase.auth.getUser();
@@ -140,28 +124,26 @@ async function getCurrentUserId() {
 
 
 /**
- * Hämtar och visar den unika datan för den inloggade användaren.
+ * 5. Hämtar och visar den unika datan för den inloggade användaren.
  */
 async function fetchAndDisplayUserData(userId, email) {
-    // 1. Försök att hämta data från den skyddade tabellen
+    // Försök att hämta data från den skyddade tabellen (RLS skyddar!)
     const { data, error } = await supabase
         .from('user_data')
         .select('portal_status, latest_report_date, contact_person')
         .eq('user_id', userId) 
-        .single(); // Förväntar sig bara en rad (din RLS skyddar resten!)
+        .single(); 
 
-    // 2. Hantera fel och visa UI
     if (error && error.code !== 'PGRST116') { 
-        // PGRST116 betyder "ingen data hittades", vilket vi hanterar
         console.error("Fel vid hämtning av användardata:", error);
-        portalContent.innerHTML = '<p class="error">Kunde inte ladda din data på grund av ett fel.</p>';
+        portalContent.innerHTML = '<p class="error">Kunde inte ladda din data. (Kontrollera RLS)</p>';
+        return;
     }
     
-    // 3. Bygg upp det individuella innehållet
     let contentHTML;
     
     if (data) {
-        // Data hittades, visa den
+        // Data hittades
         contentHTML = `
             <h2>Välkommen, ${email}!</h2>
             <p><strong>Status:</strong> ${data.portal_status}</p>
@@ -169,63 +151,65 @@ async function fetchAndDisplayUserData(userId, email) {
             <p><strong>Din Kontakt:</strong> ${data.contact_person}</p>
         `;
     } else {
-        // Inloggad men ingen specifik data (kontrollera Steg 1.4)
+        // Inloggad men ingen specifik data i user_data (behöver läggas till i Supabase)
          contentHTML = `
             <h2>Välkommen, ${email}!</h2>
             <p>Ingen specifik data hittades för ditt konto. Kontakta support.</p>
         `;
     }
     
-    // 4. Visa innehållet och utloggningsknappen
+    // Visa innehållet och koppla eventlyssnaren till den nya utloggningsknappen
     portalContent.innerHTML = contentHTML + '<button id="logoutButton">Logga ut</button>';
     document.getElementById('logoutButton').addEventListener('click', signOut);
 
     portalContent.style.display = 'block';
-    authStatus.innerHTML = ''; // Rensa statusmeddelanden
+    authStatus.innerHTML = ''; 
 }
 
 
 /**
- * Kontrollerar den aktuella inloggningsstatusen och uppdaterar gränssnittet. (Huvudfunktionen)
+ * 6. Huvudfunktion: Kontrollerar status och uppdaterar gränssnittet.
  */
 async function updateUI() {
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (user) {
-        // Användaren är inloggad. Gå vidare till att hämta unik data.
-        const userId = user.id;
-        const userEmail = user.email;
-        
+    const userId = await getCurrentUserId();
+    
+    if (userId) {
+        // Användaren är inloggad
+        const userEmail = (await supabase.auth.getUser()).data.user.email;
         loginForm.style.display = 'none';
+        otpForm.style.display = 'none';
         
-        // Hämta och visa den individuella informationen
         await fetchAndDisplayUserData(userId, userEmail); 
     } else {
         // Användaren är utloggad
         loginForm.style.display = 'block';
+        otpForm.style.display = 'none';
         portalContent.style.display = 'none';
-        authStatus.innerHTML = '<p>Vänligen ange din e-post för att logga in.</p>';
+        authStatus.innerHTML = '<p>Vänligen ange din e-post för att få koden.</p>';
     }
 }
-
-// ... (behåll dina eventlyssnare från Steg C) ...
-// Observera att `logoutButton`-lyssnaren nu hanteras inuti `fetchAndDisplayUserData`.
 
 // ====================================================================
 // C. EVENT LYSSNARE & INITIERING
 // ====================================================================
 
-// 1. Hantera formulärinlämning
+// 1. Hantera formulärinlämning (Skicka E-post)
 loginForm.addEventListener('submit', (e) => {
     e.preventDefault();
     const email = document.getElementById('email').value;
     signInWithEmail(email);
 });
 
+// 2. Hantera Verifiera Kod
+otpForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const otp = document.getElementById('otp').value;
+    verifyOtpCode(otp);
+});
 
-// 3. Lyssna på förändringar i autentiseringsstatus (t.ex. när länken klickas)
+// 3. Lyssna på förändringar i autentiseringsstatus 
 supabase.auth.onAuthStateChange((event, session) => {
-    // Denna körs när en användare loggar in via Magic Link/OTP
+    // Detta körs när en användare loggas in/ut
     if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
         updateUI();
     }
@@ -233,7 +217,6 @@ supabase.auth.onAuthStateChange((event, session) => {
 
 // 4. Initial laddning av UI
 updateUI();
-    </script>
-
+</script>
 </body>
 </html>
