@@ -14,7 +14,18 @@
     </style>
 </head>
 <body>
+<form id="loginForm">
+    <label for="email">E-postadress:</label><br>
+    <input type="email" id="email" required placeholder="din.adress@doman.se"><br><br>
+    <button type="submit" id="submitButton">Få Inloggningskod</button>
+</form>
 
+<form id="otpForm" style="display: none;">
+    <p>En kod har skickats till din e-post. Ange den nedan.</p>
+    <label for="otp">Engångskod:</label><br>
+    <input type="text" id="otp" required placeholder="Skriv in 6-siffrig kod"><br><br>
+    <button type="submit" id="verifyButton">Logga in</button>
+</form>
     <h1>Rönnes Filmklubb inlogg:</h1>
 
     <div id="auth-status"></div>
@@ -50,39 +61,69 @@ const authStatus = document.getElementById('auth-status');
 const logoutButton = document.getElementById('logoutButton');
 
 
-// ====================================================================
-// B. FUNKTIONER FÖR INLOGGNING/UTLOGGNING
-// ====================================================================
+// =================== NYA CACHE-ELEMENT ===================
+const otpForm = document.getElementById('otpForm');
+let currentEmail = ''; // Lagra e-postadressen tillfälligt
 
-/**
- * Försöker logga in användaren med en Magic Link (lösenordsfri inloggning).
- * @param {string} email - Användarens e-postadress.
- */
+// =================== 1. SKICKA KOD (OTP) ===================
 async function signInWithEmail(email) {
-    authStatus.innerHTML = 'Skickar länk...';
-
+    authStatus.innerHTML = 'Skickar kod...';
+    currentEmail = email; // Spara e-posten
+    
+    // ANVÄND NU signInWithOtp UTAN 'emailRedirectTo'
     const { error } = await supabase.auth.signInWithOtp({
         email: email,
         options: {
-            emailRedirectTo: REDIRECT_URL // Supabase kommer att skicka användaren hit efter klick
+            shouldCreateUser: false // Logga inte in nya användare, endast befintliga
         }
     });
 
     if (error) {
-        // Detta fel visas om t.ex. e-posten är felformaterad, eller om din RLS (Row Level Security) 
-        // regler på serversidan nekar en okänd e-post.
-        authStatus.innerHTML = `<p class="error">Inloggningen misslyckades: ${error.message}</p>`;
+        authStatus.innerHTML = `<p class="error">Fel: ${error.message}</p>`;
     } else {
-        authStatus.innerHTML = `
-            <p class="success">
-                Lyckades! En inloggningslänk har skickats till 
-                <strong>${email}</strong>. Kontrollera din inkorg.
-            </p>
-        `;
+        authStatus.innerHTML = `<p class="success">Kod skickad. Kontrollera din inkorg.</p>`;
         loginForm.style.display = 'none';
+        otpForm.style.display = 'block'; // Visa fältet för koden
     }
 }
 
+// =================== 2. VERIFIERA KODEN ===================
+async function verifyOtpCode(token) {
+    authStatus.innerHTML = 'Verifierar kod...';
+    
+    // Använd email som sparades efter första steget
+    const { error } = await supabase.auth.verifyOtp({
+        email: currentEmail,
+        token: token,
+        type: 'email' // Ange att det är en e-postkod
+    });
+
+    if (error) {
+        authStatus.innerHTML = `<p class="error">Verifiering misslyckades: Ogiltig kod eller utgången.</p>`;
+    } else {
+        // Logik för att uppdatera UI körs nu via onAuthStateChange
+        otpForm.style.display = 'none'; 
+    }
+}
+
+
+// =================== C. EVENT LYSSNARE ===================
+
+// 1. Hantera Skicka E-post (Kör signInWithEmail)
+loginForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const email = document.getElementById('email').value;
+    signInWithEmail(email);
+});
+
+// 2. Hantera Verifiera Kod (Kör verifyOtpCode)
+otpForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const otp = document.getElementById('otp').value;
+    verifyOtpCode(otp);
+});
+
+// (Resten av din kod, updateUI och onAuthStateChange, kan förbli som den är)
 /**
  * Loggar ut användaren från Supabase.
  */
