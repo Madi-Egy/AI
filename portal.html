@@ -222,8 +222,6 @@ loginForm.addEventListener('submit', (e) => {
     signInWithEmail(email);
 });
 
-// 2. Hantera utloggning
-logoutButton.addEventListener('click', signOut);
 
 // 3. Lyssna på förändringar i autentiseringsstatus (t.ex. när länken klickas)
 supabase.auth.onAuthStateChange((event, session) => {
