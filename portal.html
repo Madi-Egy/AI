@@ -1,226 +1,192 @@
 <!DOCTYPE html>
 <html lang="sv">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Inloggning till Portal</title>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
-    <style>
-        /* Lite grundläggande CSS för demonstration */
-        body { font-family: sans-serif; padding: 20px; }
-        #loginForm { max-width: 400px; margin-top: 20px; }
-        .success { color: green; font-weight: bold; }
-        .error { color: red; }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Inloggning till Portal</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    #loginForm { max-width: 400px; margin-top: 20px; }
+    .success { color: green; font-weight: bold; }
+    .error { color: red; }
+  </style>
 </head>
 <body>
-<form id="loginForm">
+  <form id="loginForm">
     <h1>Rönnes Filmklubb inlogg:</h1>
-    <label for="email">E-postadress:</label><br>
-    <input type="email" id="email" required placeholder="din.adress@doman.se"><br><br>
+    <label for="email">E-postadress:</label><br />
+    <input type="email" id="email" required placeholder="din.adress@doman.se" /><br /><br />
     <button type="submit" id="submitButton">Få Inloggningskod</button>
-</form>
+  </form>
 
-<form id="otpForm" style="display: none;">
+  <form id="otpForm" style="display: none;">
     <p>En kod har skickats till din e-post. Ange den nedan.</p>
-    <label for="otp">Engångskod:</label><br>
-    <input type="text" id="otp" required placeholder="Skriv in 6-siffrig kod"><br><br>
+    <label for="otp">Engångskod:</label><br />
+    <input type="text" id="otp" required placeholder="Skriv in 6-siffrig kod" /><br /><br />
     <button type="submit" id="verifyButton">Logga in</button>
-</form>
+  </form>
 
+  <div id="auth-status"></div>
 
-    <div id="auth-status"></div>
+  <div id="portalContent" style="display: none;">
+    <h2>Välkommen! Du är inloggad.</h2>
+    <p>Här är ditt portalinnehåll.</p>
+    <button id="logoutButton">Logga ut</button>
+  </div>
 
-    <div id="portalContent" style="display: none;">
-        <h2>Välkommen! Du är inloggad.</h2>
-        <p>Här är ditt portalinnehåll.</p>
-        <button id="logoutButton">Logga ut</button>
-    </div>
+  <script type="module">
+    // Import the Supabase client (ESM)
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.35.0/dist/supabase-js.min.js';
 
-    <script>
+    // ====================================================================
+    // A. KONFIGURATION
+    // ====================================================================
+    const SUPABASE_URL = 'https://wqjnmwyuwxzfivrmzquq.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indxam5td3l1d3h6Zml2cm16cXVxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkzNDMwMDksImV4cCI6MjA3NDkxOTAwOX0.UQpkYTTq2DUH5h8hBiSwNcvE7vDsBrArNC9uFPvyhPU'; // <-- Replace this with your anon key
 
-// ====================================================================
-// A. KONFIGURATION
-// ====================================================================
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// ERSÄTT DESSA MED DINA EGNA NYCKLAR FRÅN SUPABASE DASHBOARD
-const SUPABASE_URL = 'https://wqjnmwyuwxzfivrmzquq.supabase.co'; 
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indxam5td3l1d3h6Zml2cm16cXVxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkzNDMwMDksImV4cCI6MjA3NDkxOTAwOX0.UQpkYTTq2DUH5h8hBiSwNcvE7vDsBrArNC9uFPvyhPU'; 
+    // Cache för DOM-element
+    const loginForm = document.getElementById('loginForm');
+    const portalContent = document.getElementById('portalContent');
+    const authStatus = document.getElementById('auth-status');
+    const otpForm = document.getElementById('otpForm');
+    let currentEmail = ''; // Lagra e-postadressen tillfälligt för OTP-verifieringen
 
-const supabase = Supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    // ====================================================================
+    // B. FUNKTIONER FÖR INLOGGNING/UTLOGGNING (OTP-version)
+    // ====================================================================
 
-// Cache för DOM-element
-const loginForm = document.getElementById('loginForm');
-const portalContent = document.getElementById('portalContent');
-const authStatus = document.getElementById('auth-status');
-const otpForm = document.getElementById('otpForm');
-let currentEmail = ''; // Lagra e-postadressen tillfälligt för OTP-verifieringen
+    async function signInWithEmail(email) {
+      authStatus.innerHTML = 'Skickar kod...';
+      currentEmail = email;
 
-// ====================================================================
-// B. FUNKTIONER FÖR INLOGGNING/UTLOGGNING (OTP-version)
-// ====================================================================
-
-/**
- * 1. Skickar en numerisk Engångskod (OTP) till den angivna e-postadressen.
- */
-async function signInWithEmail(email) {
-    authStatus.innerHTML = 'Skickar kod...';
-    currentEmail = email; 
-    
-    // Använder signInWithOtp, Supabase vet att det är OTP eftersom vi inte skickar Redirect-URL
-    const { error } = await supabase.auth.signInWithOtp({
+      const { error } = await supabase.auth.signInWithOtp({
         email: email,
         options: {
-            shouldCreateUser: false // Viktigt: Endast inloggning för befintliga användare
+          shouldCreateUser: false
         }
-    });
+      });
 
-    if (error) {
+      if (error) {
         authStatus.innerHTML = `<p class="error">Inloggning misslyckades. Kontrollera e-post: ${error.message}</p>`;
-    } else {
+      } else {
         authStatus.innerHTML = `<p class="success">Kod skickad. Kontrollera din inkorg.</p>`;
         loginForm.style.display = 'none';
-        otpForm.style.display = 'block'; // Visa fältet för koden
+        otpForm.style.display = 'block';
+      }
     }
-}
 
-/**
- * 2. Verifierar den numeriska Engångskoden (OTP).
- */
-async function verifyOtpCode(token) {
-    authStatus.innerHTML = 'Verifierar kod...';
-    
-    // Verifierar koden mot Supabase
-    const { error } = await supabase.auth.verifyOtp({
+    async function verifyOtpCode(token) {
+      authStatus.innerHTML = 'Verifierar kod...';
+
+      const { error } = await supabase.auth.verifyOtp({
         email: currentEmail,
         token: token,
         type: 'email'
-    });
+      });
 
-    if (error) {
+      if (error) {
         authStatus.innerHTML = `<p class="error">Verifiering misslyckades: Ogiltig kod eller utgången.</p>`;
-    } else {
-        // Om koden är rätt, triggas onAuthStateChange och updateUI tar över
-        otpForm.style.display = 'none'; 
+      } else {
+        otpForm.style.display = 'none';
         authStatus.innerHTML = `<p class="success">Verifiering lyckades!</p>`;
+      }
     }
-}
 
-/**
- * 3. Loggar ut användaren från Supabase.
- */
-async function signOut() {
-    await supabase.auth.signOut();
-    updateUI();
-}
+    async function signOut() {
+      await supabase.auth.signOut();
+      updateUI();
+    }
 
-/**
- * 4. Hämtar den inloggade användarens ID.
- */
-async function getCurrentUserId() {
-    const { data: { user } } = await supabase.auth.getUser();
-    return user ? user.id : null; 
-}
+    async function getCurrentUserId() {
+      const { data } = await supabase.auth.getUser();
+      const user = data?.user ?? null;
+      return user ? user.id : null;
+    }
 
-
-/**
- * 5. Hämtar och visar den unika datan för den inloggade användaren.
- */
-async function fetchAndDisplayUserData(userId, email) {
-    // Försök att hämta data från den skyddade tabellen (RLS skyddar!)
-    const { data, error } = await supabase
+    async function fetchAndDisplayUserData(userId, email) {
+      const { data, error } = await supabase
         .from('user_data')
         .select('rek_1_title, rek_1_link, rek_1_imdb, rek_2_title, rek_2_link, rek_2_imdb, grade_link')
-        .eq('user_id', userId) 
-        .single(); 
+        .eq('user_id', userId)
+        .single();
 
-    if (error && error.code !== 'PGRST116') { 
+      if (error && error.code !== 'PGRST116') {
         console.error("Fel vid hämtning av användardata:", error);
         portalContent.innerHTML = '<p class="error">Kunde inte ladda din data. (Kontrollera RLS)</p>';
+        portalContent.style.display = 'block';
         return;
-    }
-    
-    let contentHTML;
-    
-    if (data) {
-        // Data hittades
+      }
+
+      let contentHTML = '';
+      if (data) {
         contentHTML = `
-            <h2>Välkommen, ${email}!</h2>
-            <p><strong>Rekomendation ett:</strong> ${data.rek_1_title}</p>
-            <a href= ${data.rek_1_link}> Se filmen här!</a>
-            <a href= ${data.rek_1_imdb}> Läs om filmen här!</a>
-            <p><strong>Rekomendation två:</strong> ${data.rek_2_title}</p>
-            <a href= ${data.rek_2_link}> Se filmen här!</a>
-            <a href= ${data.rek_2_imdb}> Läs om filmen här!</a>
-            <a href= ${data.grade_link}> Glöm inte att betygsätt filmen efter att du sett den!</a>
+          <h2>Välkommen, ${email}!</h2>
+          <p><strong>Rekomendation ett:</strong> ${data.rek_1_title || ''}</p>
+          ${data.rek_1_link ? `<p><a href="${data.rek_1_link}" target="_blank" rel="noopener">Se filmen här!</a></p>` : ''}
+          ${data.rek_1_imdb ? `<p><a href="${data.rek_1_imdb}" target="_blank" rel="noopener">Läs om filmen här!</a></p>` : ''}
+          <p><strong>Rekomendation två:</strong> ${data.rek_2_title || ''}</p>
+          ${data.rek_2_link ? `<p><a href="${data.rek_2_link}" target="_blank" rel="noopener">Se filmen här!</a></p>` : ''}
+          ${data.rek_2_imdb ? `<p><a href="${data.rek_2_imdb}" target="_blank" rel="noopener">Läs om filmen här!</a></p>` : ''}
+          ${data.grade_link ? `<p><a href="${data.grade_link}" target="_blank" rel="noopener">Glöm inte att betygsätt filmen efter att du sett den!</a></p>` : ''}
         `;
-    } else {
-        // Inloggad men ingen specifik data i user_data (behöver läggas till i Supabase)
-         contentHTML = `
-            <h2>Välkommen, ${email}!</h2>
-            <p>Ingen specifik data hittades för ditt konto. Kontakta support.</p>
+      } else {
+        contentHTML = `
+          <h2>Välkommen, ${email}!</h2>
+          <p>Ingen specifik data hittades för ditt konto. Kontakta support.</p>
         `;
+      }
+
+      portalContent.innerHTML = contentHTML + '<button id="logoutButton">Logga ut</button>';
+      document.getElementById('logoutButton').addEventListener('click', signOut);
+
+      portalContent.style.display = 'block';
+      authStatus.innerHTML = '';
     }
-    
-    // Visa innehållet och koppla eventlyssnaren till den nya utloggningsknappen
-    portalContent.innerHTML = contentHTML + '<button id="logoutButton">Logga ut</button>';
-    document.getElementById('logoutButton').addEventListener('click', signOut);
 
-    portalContent.style.display = 'block';
-    authStatus.innerHTML = ''; 
-}
+    async function updateUI() {
+      const userId = await getCurrentUserId();
 
-
-/**
- * 6. Huvudfunktion: Kontrollerar status och uppdaterar gränssnittet.
- */
-async function updateUI() {
-    const userId = await getCurrentUserId();
-    
-    if (userId) {
-        // Användaren är inloggad
-        const userEmail = (await supabase.auth.getUser()).data.user.email;
+      if (userId) {
+        const { data } = await supabase.auth.getUser();
+        const userEmail = data?.user?.email ?? '';
         loginForm.style.display = 'none';
         otpForm.style.display = 'none';
-        
-        await fetchAndDisplayUserData(userId, userEmail); 
-    } else {
-        // Användaren är utloggad
+
+        await fetchAndDisplayUserData(userId, userEmail);
+      } else {
         loginForm.style.display = 'block';
         otpForm.style.display = 'none';
         portalContent.style.display = 'none';
         authStatus.innerHTML = '<p>Vänligen ange din e-post för att få koden.</p>';
+      }
     }
-}
 
-// ====================================================================
-// C. EVENT LYSSNARE & INITIERING
-// ====================================================================
+    // ====================================================================
+    // C. EVENT LYSSNARE & INITIERING
+    // ====================================================================
 
-// 1. Hantera formulärinlämning (Skicka E-post)
-loginForm.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const email = document.getElementById('email').value;
-    signInWithEmail(email);
-});
+    loginForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const email = document.getElementById('email').value;
+      signInWithEmail(email);
+    });
 
-// 2. Hantera Verifiera Kod
-otpForm.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const otp = document.getElementById('otp').value;
-    verifyOtpCode(otp);
-});
+    otpForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const otp = document.getElementById('otp').value;
+      verifyOtpCode(otp);
+    });
 
-// 3. Lyssna på förändringar i autentiseringsstatus 
-supabase.auth.onAuthStateChange((event, session) => {
-    // Detta körs när en användare loggas in/ut
-    if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
+    supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
         updateUI();
-    }
-});
+      }
+    });
 
-// 4. Initial laddning av UI
-updateUI();
-</script>
+    // Initial laddning av UI
+    updateUI();
+  </script>
 </body>
 </html>
