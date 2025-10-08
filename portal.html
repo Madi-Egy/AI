@@ -35,14 +35,14 @@
   </div>
 
   <script type="module">
-    // Import the Supabase client (ESM)
-    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.35.0/dist/supabase-js.min.js';
+    // Use the ESM entry for supabase-js v2 from jsDelivr
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 
     // ====================================================================
     // A. KONFIGURATION
     // ====================================================================
     const SUPABASE_URL = 'https://wqjnmwyuwxzfivrmzquq.supabase.co';
-    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indxam5td3l1d3h6Zml2cm16cXVxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkzNDMwMDksImV4cCI6MjA3NDkxOTAwOX0.UQpkYTTq2DUH5h8hBiSwNcvE7vDsBrArNC9uFPvyhPU'; // <-- Replace this with your anon key
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indxam5td3l1d3h6Zml2cm16cXVxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkzNDMwMDksImV4cCI6MjA3NDkxOTAwOX0.UQpkYTTq2DUH5h8hBiSwNcvE7vDsBrArNC9uFPvyhPU'; // <-- Replace with your anon key
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -63,9 +63,7 @@
 
       const { error } = await supabase.auth.signInWithOtp({
         email: email,
-        options: {
-          shouldCreateUser: false
-        }
+        options: { shouldCreateUser: false }
       });
 
       if (error) {
@@ -190,3 +188,5 @@
   </script>
 </body>
 </html>
+
+
